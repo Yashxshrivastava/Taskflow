@@ -11,7 +11,8 @@ import {
     ListItemText, 
     Divider, 
     Button, 
-    CircularProgress 
+    CircularProgress,
+    Tooltip
 } from '@mui/material';
 import { Notifications as NotificationsIcon, DeleteSweep as ClearIcon } from '@mui/icons-material';
 import axios from '../api/axios';
@@ -49,7 +50,7 @@ const Notifications = () => {
 
     useEffect(() => {
         fetchNotifications();
-        const interval = setInterval(fetchNotifications, 15000);
+        const interval = setInterval(fetchNotifications, 10000); // Check every 10s
         return () => clearInterval(interval);
     }, []);
 
@@ -81,24 +82,28 @@ const Notifications = () => {
     };
 
     const handleRequest = async (requestId, action, notificationId) => {
+        setLoading(true);
         try {
             await axios.post(`/notifications/requests/${requestId}/handle`, { action });
-            await handleMarkAsRead(notificationId);
-            fetchNotifications();
-            // Wait a moment then reload to show task update/removal
-            setTimeout(() => window.location.reload(), 500);
+            // Successfully handled: Refresh everything
+            await fetchNotifications();
+            handleClose();
+            // RELOAD page to ensure all components see the database change
+            window.location.reload(); 
         } catch (error) {
             console.error('Error handling request:', error);
+            alert('Action failed. Please check if you are an Admin of this project.');
+        } finally {
+            setLoading(false);
         }
     };
 
     const handleNotificationClick = (n) => {
         if (n.project_id) {
-            // Navigate with task ID hash for scrolling
             const path = `/projects/${n.project_id}${n.task_id ? `#task-${n.task_id}` : ''}`;
             navigate(path);
             handleClose();
-            // Force scroll if already on the page
+            
             if (window.location.pathname.includes(`/projects/${n.project_id}`)) {
                 const element = document.getElementById(`task-${n.task_id}`);
                 if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -138,6 +143,11 @@ const Notifications = () => {
                 </Box>
                 <Divider />
                 <List sx={{ p: 0 }}>
+                    {loading && (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                            <CircularProgress size={24} />
+                        </Box>
+                    )}
                     {notifications.length === 0 ? (
                         <MenuItem disabled>
                             <Typography variant="body2" sx={{ py: 2, textAlign: 'center', width: '100%' }}>No notifications yet</Typography>
@@ -176,6 +186,7 @@ const Notifications = () => {
                                             variant="contained" 
                                             color="primary"
                                             fullWidth
+                                            disabled={loading}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleRequest(JSON.parse(n.data).requestId, 'accept', n.id);
@@ -189,6 +200,7 @@ const Notifications = () => {
                                             variant="outlined" 
                                             color="error"
                                             fullWidth
+                                            disabled={loading}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleRequest(JSON.parse(n.data).requestId, 'decline', n.id);
@@ -215,7 +227,5 @@ const alpha = (color, opacity) => {
     const b = parseInt(hex.substring(4, 6), 16);
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 };
-
-import { Tooltip } from '@mui/material';
 
 export default Notifications;

@@ -107,25 +107,27 @@ exports.handleAssignmentRequest = async (req, res) => {
         }
 
         if (action === 'accept') {
+            // 1. Assign the task to the member
             await db.query('UPDATE tasks SET assigned_to = ? WHERE id = ?', [request.user_id, request.task_id]);
-            await db.query('UPDATE assignment_requests SET status = "Accepted" WHERE id = ?', [requestId]);
             
+            // 2. Notify the member
             await db.query(
                 'INSERT INTO notifications (user_id, sender_id, project_id, task_id, type, message) VALUES (?, ?, ?, ?, ?, ?)',
                 [request.user_id, req.user.id, request.project_id, request.task_id, 'assignment_approved', `Your self-assignment request for "${request.title}" was approved.`]
             );
         } else {
-            // DECLINE: Delete task as requested
+            // 1. Decline: Remove the task
             await db.query('DELETE FROM tasks WHERE id = ?', [request.task_id]);
-            // (assignment_requests will be deleted automatically via ON DELETE CASCADE if configured, or manually)
-            await db.query('DELETE FROM assignment_requests WHERE id = ?', [requestId]);
             
+            // 2. Notify the member
             await db.query(
                 'INSERT INTO notifications (user_id, sender_id, project_id, type, message) VALUES (?, ?, ?, ?, ?)',
                 [request.user_id, req.user.id, request.project_id, 'assignment_declined', `Your self-assignment request for "${request.title}" was declined and the task was removed.`]
             );
         }
 
+        // 3. IMPORTANT: Delete the request and the triggering notification so they are GONE
+        await db.query('DELETE FROM assignment_requests WHERE id = ?', [requestId]);
         await db.query('DELETE FROM notifications WHERE type = "self_assignment_request" AND data->>"$.requestId" = ?', [requestId]);
 
         res.json({ message: `Request ${action}ed successfully` });
