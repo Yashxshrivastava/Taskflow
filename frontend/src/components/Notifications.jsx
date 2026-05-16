@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import { Notifications as NotificationsIcon } from '@mui/icons-material';
 import axios from '../api/axios';
+import { useNavigate } from 'react-router-dom';
 
 const timeAgo = (date) => {
     const seconds = Math.floor((new Date() - new Date(date)) / 1000);
@@ -35,23 +36,20 @@ const Notifications = () => {
     const [notifications, setNotifications] = useState([]);
     const [anchorEl, setAnchorEl] = useState(null);
     const [loading, setLoading] = useState(false);
+    const navigate = useNavigate();
 
     const fetchNotifications = async () => {
         try {
-            setLoading(true);
             const response = await axios.get('/notifications');
             setNotifications(response.data);
         } catch (error) {
             console.error('Error fetching notifications:', error);
-        } finally {
-            setLoading(false);
         }
     };
 
     useEffect(() => {
         fetchNotifications();
-        // Poll every 30 seconds
-        const interval = setInterval(fetchNotifications, 30000);
+        const interval = setInterval(fetchNotifications, 15000); // Check every 15s
         return () => clearInterval(interval);
     }, []);
 
@@ -77,8 +75,20 @@ const Notifications = () => {
             await axios.post(`/notifications/requests/${requestId}/handle`, { action });
             await handleMarkAsRead(notificationId);
             fetchNotifications();
+            // Trigger a page refresh if on a project detail page
+            window.location.reload(); 
         } catch (error) {
             console.error('Error handling request:', error);
+        }
+    };
+
+    const handleNotificationClick = (n) => {
+        if (n.project_id) {
+            navigate(`/projects/${n.project_id}`);
+            handleClose();
+        }
+        if (!n.is_read) {
+            handleMarkAsRead(n.id);
         }
     };
 
@@ -96,41 +106,58 @@ const Notifications = () => {
                 open={Boolean(anchorEl)}
                 onClose={handleClose}
                 PaperProps={{
-                    sx: { width: 320, maxHeight: 400, mt: 1.5 }
+                    sx: { width: 350, maxHeight: 450, mt: 1.5, borderRadius: 2, boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }
                 }}
             >
                 <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600 }}>Notifications</Typography>
+                    <Typography variant="h6" sx={{ fontSize: '1.1rem', fontWeight: 700 }}>Notifications</Typography>
                     {loading && <CircularProgress size={20} />}
                 </Box>
                 <Divider />
                 <List sx={{ p: 0 }}>
                     {notifications.length === 0 ? (
                         <MenuItem disabled>
-                            <Typography variant="body2">No notifications</Typography>
+                            <Typography variant="body2" sx={{ py: 2, textAlign: 'center', width: '100%' }}>No notifications yet</Typography>
                         </MenuItem>
                     ) : (
                         notifications.map((n) => (
                             <ListItem 
                                 key={n.id} 
+                                button
+                                onClick={() => handleNotificationClick(n)}
                                 sx={{ 
                                     flexDirection: 'column', 
                                     alignItems: 'flex-start',
-                                    bgcolor: n.is_read ? 'transparent' : 'action.hover'
+                                    borderBottom: '1px solid',
+                                    borderColor: 'divider',
+                                    bgcolor: n.is_read ? 'transparent' : alpha('#1976d2', 0.05),
+                                    transition: 'background 0.2s',
+                                    '&:hover': { bgcolor: 'action.hover' },
+                                    px: 2, py: 1.5
                                 }}
                             >
                                 <ListItemText 
                                     primary={n.message}
                                     secondary={timeAgo(n.created_at)}
-                                    primaryTypographyProps={{ variant: 'body2', fontWeight: n.is_read ? 400 : 600 }}
+                                    primaryTypographyProps={{ 
+                                        variant: 'body2', 
+                                        fontWeight: n.is_read ? 400 : 700,
+                                        color: n.type.includes('overdue') ? 'error.main' : 'text.primary'
+                                    }}
+                                    secondaryTypographyProps={{ variant: 'caption', mt: 0.5 }}
                                 />
                                 {n.type === 'self_assignment_request' && !n.is_read && (
-                                    <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
+                                    <Box sx={{ mt: 1.5, display: 'flex', gap: 1, width: '100%' }}>
                                         <Button 
                                             size="small" 
                                             variant="contained" 
                                             color="primary"
-                                            onClick={() => handleRequest(JSON.parse(n.data).requestId, 'accept', n.id)}
+                                            fullWidth
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleRequest(JSON.parse(n.data).requestId, 'accept', n.id);
+                                            }}
+                                            sx={{ fontWeight: 700 }}
                                         >
                                             Accept
                                         </Button>
@@ -138,14 +165,16 @@ const Notifications = () => {
                                             size="small" 
                                             variant="outlined" 
                                             color="error"
-                                            onClick={() => handleRequest(JSON.parse(n.data).requestId, 'decline', n.id)}
+                                            fullWidth
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleRequest(JSON.parse(n.data).requestId, 'decline', n.id);
+                                            }}
+                                            sx={{ fontWeight: 700 }}
                                         >
                                             Decline
                                         </Button>
                                     </Box>
-                                )}
-                                {!n.is_read && n.type !== 'self_assignment_request' && (
-                                    <Button size="small" onClick={() => handleMarkAsRead(n.id)}>Mark as read</Button>
                                 )}
                             </ListItem>
                         ))
@@ -154,6 +183,14 @@ const Notifications = () => {
             </Menu>
         </Box>
     );
+};
+
+const alpha = (color, opacity) => {
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 };
 
 export default Notifications;
