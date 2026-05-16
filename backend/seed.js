@@ -3,9 +3,64 @@ const bcrypt = require('bcryptjs');
 
 const seed = async () => {
     try {
-        console.log('Seeding database...');
+        console.log('Starting Database Setup...');
 
-        // 1. Create Admin User
+        // 1. Create Tables if they don't exist
+        console.log('Creating tables...');
+        
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                email VARCHAR(255) NOT NULL UNIQUE,
+                password VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS projects (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                creator_id INT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS project_members (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                project_id INT,
+                user_id INT,
+                role ENUM('Admin', 'Member') DEFAULT 'Member',
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE KEY unique_membership (project_id, user_id)
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                project_id INT,
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                due_date DATE,
+                priority ENUM('Low', 'Medium', 'High') DEFAULT 'Medium',
+                status ENUM('To Do', 'In Progress', 'Done') DEFAULT 'To Do',
+                assigned_to INT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
+            )
+        `);
+
+        console.log('Tables verified/created successfully!');
+
+        // 2. Create Admin User
         const adminEmail = 'admin@taskflow.com';
         const adminPassword = 'admin123';
         const hashedAdminPassword = await bcrypt.hash(adminPassword, 10);
@@ -23,26 +78,6 @@ const seed = async () => {
         } else {
             adminId = existingAdmin[0].id;
             console.log('Admin user already exists.');
-        }
-
-        // 2. Create Member User
-        const memberEmail = 'member@taskflow.com';
-        const memberPassword = 'member123';
-        const hashedMemberPassword = await bcrypt.hash(memberPassword, 10);
-
-        const [existingMember] = await db.query('SELECT * FROM users WHERE email = ?', [memberEmail]);
-        let memberId;
-
-        if (existingMember.length === 0) {
-            const [userResult] = await db.query(
-                'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
-                ['Team Member', memberEmail, hashedMemberPassword]
-            );
-            memberId = userResult.insertId;
-            console.log('Member user created: member@taskflow.com / member123');
-        } else {
-            memberId = existingMember[0].id;
-            console.log('Member user already exists.');
         }
 
         // 3. Create Sample Project
@@ -66,39 +101,10 @@ const seed = async () => {
             projectId = existingProject[0].id;
         }
 
-        // 4. Add Member to Project
-        const [memberProjectCheck] = await db.query('SELECT * FROM project_members WHERE project_id = ? AND user_id = ?', [projectId, memberId]);
-        if (memberProjectCheck.length === 0) {
-            await db.query(
-                'INSERT INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
-                [projectId, memberId, 'Member']
-            );
-            console.log('Member added to "Launch TaskFlow" project.');
-        }
-
-        // 5. Create Sample Tasks
-        const [existingTasks] = await db.query('SELECT * FROM tasks WHERE project_id = ?', [projectId]);
-        if (existingTasks.length === 0) {
-            const tasks = [
-                ['Database Setup', 'Initialize MySQL schema and seed data.', '2026-06-01', 'High', 'Done', adminId],
-                ['API Development', 'Implement Auth and Project CRUD routes.', '2026-06-05', 'Medium', 'In Progress', adminId],
-                ['UI Components', 'Design MUI dashboard and board view.', '2026-06-10', 'Medium', 'To Do', memberId],
-                ['Final Testing', 'Run end-to-end tests and polish UI.', '2026-06-15', 'High', 'To Do', memberId]
-            ];
-
-            for (const [title, desc, dueDate, priority, status, assignee] of tasks) {
-                await db.query(
-                    'INSERT INTO tasks (project_id, title, description, due_date, priority, status, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                    [projectId, title, desc, dueDate, priority, status, assignee]
-                );
-            }
-            console.log('Sample tasks created and assigned.');
-        }
-
         console.log('Seeding completed successfully!');
         process.exit(0);
     } catch (error) {
-        console.error('Error seeding database:', error);
+        console.error('Error during database setup:', error);
         process.exit(1);
     }
 };
