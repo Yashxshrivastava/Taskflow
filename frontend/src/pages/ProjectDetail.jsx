@@ -17,21 +17,24 @@ import {
     Delete as DeleteIcon,
     Shield as AdminIcon,
     Person as UserIcon,
-    Edit as EditIcon
+    Edit as EditIcon,
+    HourglassEmpty as PendingIcon
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import API from '../api/axios';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../context/AuthContext';
 
 const ProjectDetail = () => {
     const { t } = useTranslation();
     const { id } = useParams();
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [project, setProject] = useState(null);
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [viewTab, setViewTab] = useState(0); // 0 for List, 1 for Board
+    const [viewTab, setViewTab] = useState(0); 
     const [searchQuery, setSearchQuery] = useState('');
     const [priorityFilter, setPriorityFilter] = useState('All');
     
@@ -39,13 +42,14 @@ const ProjectDetail = () => {
     const [taskDialogOpen, setTaskDialogOpen] = useState(false);
     const [memberDialogOpen, setMemberDialogOpen] = useState(false);
     const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+    const [isEditingTask, setIsEditingTask] = useState(false);
 
     // Edit Project State
     const [editData, setEditData] = useState({ name: '', description: '' });
 
-    // New Task State
+    // Task State
     const [taskData, setTaskData] = useState({
-        title: '', description: '', due_date: '', priority: 'Medium', assigned_to: ''
+        id: null, title: '', description: '', due_date: '', priority: 'Medium', assigned_to: ''
     });
 
     // New Member State
@@ -71,14 +75,35 @@ const ProjectDetail = () => {
         fetchData();
     }, [id]);
 
-    const handleCreateTask = async () => {
+    const handleOpenTaskDialog = (task = null) => {
+        if (task) {
+            setIsEditingTask(true);
+            setTaskData({
+                id: task.id,
+                title: task.title,
+                description: task.description || '',
+                due_date: task.due_date ? task.due_date.split('T')[0] : '',
+                priority: task.priority,
+                assigned_to: task.assigned_to || ''
+            });
+        } else {
+            setIsEditingTask(false);
+            setTaskData({ id: null, title: '', description: '', due_date: '', priority: 'Medium', assigned_to: '' });
+        }
+        setTaskDialogOpen(true);
+    };
+
+    const handleSaveTask = async () => {
         try {
-            await API.post('/tasks', { ...taskData, project_id: id });
+            if (isEditingTask) {
+                await API.put(`/tasks/${taskData.id}`, taskData);
+            } else {
+                await API.post('/tasks', { ...taskData, project_id: id });
+            }
             setTaskDialogOpen(false);
-            setTaskData({ title: '', description: '', due_date: '', priority: 'Medium', assigned_to: '' });
             fetchData();
         } catch (err) {
-            setError('Failed to create task');
+            setError(err.response?.data?.message || 'Failed to save task');
         }
     };
 
@@ -185,7 +210,7 @@ const ProjectDetail = () => {
                             </Button>
                         </>
                     )}
-                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => setTaskDialogOpen(true)}>
+                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenTaskDialog()}>
                         {t('New Task')}
                     </Button>
                 </Box>
@@ -336,7 +361,7 @@ const ProjectDetail = () => {
             )}
 
             {viewTab === 0 ? (
-                <TableContainer component={Paper} elevation={2}>
+                <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 3 }}>
                     <Table>
                         <TableHead>
                             <TableRow>
@@ -345,16 +370,24 @@ const ProjectDetail = () => {
                                 <TableCell>{t('Due Date')}</TableCell>
                                 <TableCell>{t('Priority')}</TableCell>
                                 <TableCell>{t('Status')}</TableCell>
+                                {project.role === 'Admin' && <TableCell align="right">{t('Actions')}</TableCell>}
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {filteredTasks.map((task) => (
                                 <TableRow key={task.id} hover>
                                     <TableCell>
-                                        <Typography variant="body1" sx={{ fontWeight: 500 }}>{task.title}</Typography>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Typography variant="body1" sx={{ fontWeight: 500 }}>{task.title}</Typography>
+                                            {task.request_status === 'Pending' && (
+                                                <Tooltip title={t('Self-assignment pending approval')}>
+                                                    <PendingIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+                                                </Tooltip>
+                                            )}
+                                        </Box>
                                         <Typography variant="caption" color="textSecondary">{task.description}</Typography>
                                     </TableCell>
-                                    <TableCell>{task.assignee_name || 'Unassigned'}</TableCell>
+                                    <TableCell>{task.assignee_name || (task.request_status === 'Pending' ? t('Pending...') : t('Unassigned'))}</TableCell>
                                     <TableCell>{task.due_date ? new Date(task.due_date).toLocaleDateString() : 'N/A'}</TableCell>
                                     <TableCell>
                                         <Chip label={task.priority} size="small" color={
@@ -368,6 +401,7 @@ const ProjectDetail = () => {
                                             size="small"
                                             value={task.status}
                                             onChange={(e) => handleStatusUpdate(task.id, e.target.value)}
+                                            disabled={project.role === 'Member' && task.assigned_to !== user.id}
                                             sx={{ width: 130 }}
                                         >
                                             <MenuItem value="To Do">{t('To Do')}</MenuItem>
@@ -375,6 +409,13 @@ const ProjectDetail = () => {
                                             <MenuItem value="Done">{t('Done')}</MenuItem>
                                         </TextField>
                                     </TableCell>
+                                    {project.role === 'Admin' && (
+                                        <TableCell align="right">
+                                            <IconButton size="small" onClick={() => handleOpenTaskDialog(task)}>
+                                                <EditIcon fontSize="small" />
+                                            </IconButton>
+                                        </TableCell>
+                                    )}
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -440,7 +481,14 @@ const ProjectDetail = () => {
                                         }}>
                                             <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
                                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                                                    <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.3 }}>{task.title}</Typography>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.3 }}>{task.title}</Typography>
+                                                        {task.request_status === 'Pending' && (
+                                                            <Tooltip title={t('Self-assignment pending approval')}>
+                                                                <PendingIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+                                                            </Tooltip>
+                                                        )}
+                                                    </Box>
                                                     <Chip 
                                                         label={t(task.priority)} 
                                                         size="small" 
@@ -459,15 +507,23 @@ const ProjectDetail = () => {
                                                     {task.description}
                                                 </Typography>
                                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                                                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                                                        {task.assignee_name || t('Unassigned')}
-                                                    </Typography>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                                                            {task.assignee_name || (task.request_status === 'Pending' ? t('Pending...') : t('Unassigned'))}
+                                                        </Typography>
+                                                        {project.role === 'Admin' && (
+                                                            <IconButton size="small" onClick={() => handleOpenTaskDialog(task)}>
+                                                                <EditIcon sx={{ fontSize: 14 }} />
+                                                            </IconButton>
+                                                        )}
+                                                    </Box>
                                                     <TextField
                                                         select
                                                         size="small"
                                                         variant="standard"
                                                         value={task.status}
                                                         onChange={(e) => handleStatusUpdate(task.id, e.target.value)}
+                                                        disabled={project.role === 'Member' && task.assigned_to !== user.id}
                                                         InputProps={{ disableUnderline: true }}
                                                         SelectProps={{ 
                                                             sx: { py: 0.5, fontSize: '0.8rem', fontWeight: 700 }
@@ -502,7 +558,9 @@ const ProjectDetail = () => {
 
             {/* Task Dialog */}
             <Dialog open={taskDialogOpen} onClose={() => setTaskDialogOpen(false)} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 3, p: 1 } }}>
-                <DialogTitle sx={{ fontWeight: 700, fontSize: '1.5rem' }}>{t('Add New Task')}</DialogTitle>
+                <DialogTitle sx={{ fontWeight: 700, fontSize: '1.5rem' }}>
+                    {isEditingTask ? t('Edit Task') : t('Add New Task')}
+                </DialogTitle>
                 <DialogContent>
                     <Grid container spacing={3} sx={{ mt: 0.5 }}>
                         <Grid item xs={12}>
@@ -510,6 +568,7 @@ const ProjectDetail = () => {
                                 label={t('Title')}
                                 fullWidth
                                 required
+                                disabled={project.role === 'Member' && isEditingTask}
                                 placeholder="Enter task title"
                                 value={taskData.title}
                                 onChange={(e) => setTaskData({ ...taskData, title: e.target.value })}
@@ -521,19 +580,10 @@ const ProjectDetail = () => {
                                 fullWidth
                                 multiline
                                 rows={4}
+                                disabled={project.role === 'Member' && isEditingTask}
                                 placeholder={t('What needs to be done?')}
                                 value={taskData.description}
                                 onChange={(e) => setTaskData({ ...taskData, description: e.target.value })}
-                                sx={{
-                                    '& .MuiInputBase-input': {
-                                        scrollbarWidth: 'thin',
-                                        '&::-webkit-scrollbar': { width: '6px' },
-                                        '&::-webkit-scrollbar-thumb': { 
-                                            backgroundColor: theme => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-                                            borderRadius: '10px'
-                                        }
-                                    }
-                                }}
                             />
                         </Grid>
                         <Grid item xs={12} sm={6}>
@@ -543,13 +593,10 @@ const ProjectDetail = () => {
                                     id="due-date"
                                     type="date"
                                     fullWidth
+                                    disabled={project.role === 'Member' && isEditingTask}
                                     value={taskData.due_date}
                                     onChange={(e) => setTaskData({ ...taskData, due_date: e.target.value })}
                                     InputLabelProps={{ shrink: true }}
-                                    sx={{ 
-                                        '& .MuiInputBase-input': { mt: 1 },
-                                        '& .MuiInputLabel-root': { display: 'none' } // Hide the internal label since we use explicit one
-                                    }}
                                 />
                             </FormControl>
                         </Grid>
@@ -558,6 +605,7 @@ const ProjectDetail = () => {
                                 select
                                 label={t('Priority')}
                                 fullWidth
+                                disabled={project.role === 'Member' && isEditingTask}
                                 value={taskData.priority}
                                 onChange={(e) => setTaskData({ ...taskData, priority: e.target.value })}
                             >
@@ -577,9 +625,13 @@ const ProjectDetail = () => {
                                     displayEmpty
                                 >
                                     <MenuItem value=""><em>{t('Unassigned')}</em></MenuItem>
-                                    {project.members.map(m => (
-                                        <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
-                                    ))}
+                                    {project.role === 'Admin' ? (
+                                        project.members.map(m => (
+                                            <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
+                                        ))
+                                    ) : (
+                                        <MenuItem value={user.id}>{user.name} ({t('Self')})</MenuItem>
+                                    )}
                                 </Select>
                             </FormControl>
                         </Grid>
@@ -587,7 +639,9 @@ const ProjectDetail = () => {
                 </DialogContent>
                 <DialogActions sx={{ p: 3 }}>
                     <Button onClick={() => setTaskDialogOpen(false)} color="inherit">{t('Cancel')}</Button>
-                    <Button onClick={handleCreateTask} variant="contained" size="large">{t('Add Task')}</Button>
+                    <Button onClick={handleSaveTask} variant="contained" size="large">
+                        {isEditingTask ? t('Update Task') : t('Add Task')}
+                    </Button>
                 </DialogActions>
             </Dialog>
 

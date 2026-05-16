@@ -7,6 +7,7 @@ router.use(verifyToken);
 
 router.post('/', taskController.createTask);
 router.get('/project/:projectId', taskController.getProjectTasks);
+router.put('/:id', taskController.updateTask);
 router.patch('/:id/status', taskController.updateTaskStatus);
 
 module.exports = router;

@@ -13,6 +13,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { useTranslation } from 'react-i18next';
+import Notifications from './Notifications';
 
 const drawerWidth = 260;
 
@@ -88,6 +89,7 @@ const Layout = () => {
                     </Typography>
                     
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Notifications />
                         <Tooltip title={darkMode ? t('Switch to Light Mode') : t('Switch to Dark Mode')}>
                             <IconButton onClick={() => setDarkMode(!darkMode)} color="inherit">
                                 {darkMode ? <LightModeIcon /> : <DarkModeIcon />}

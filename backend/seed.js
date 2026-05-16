@@ -5,8 +5,8 @@ const seed = async () => {
     try {
         console.log('Starting Database Setup...');
 
-        // 1. Create Tables if they don't exist
-        console.log('Creating tables...');
+        // 1. Create Tables
+        console.log('Creating/Verifying tables...');
         
         await db.query(`
             CREATE TABLE IF NOT EXISTS users (
@@ -58,6 +58,39 @@ const seed = async () => {
             )
         `);
 
+        // NEW: Notifications Table
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                sender_id INT,
+                project_id INT,
+                task_id INT,
+                type VARCHAR(50) NOT NULL,
+                message TEXT NOT NULL,
+                data JSON,
+                is_read BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE SET NULL,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+            )
+        `);
+
+        // NEW: Assignment Requests Table
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS assignment_requests (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                task_id INT NOT NULL,
+                user_id INT NOT NULL,
+                status ENUM('Pending', 'Accepted', 'Declined') DEFAULT 'Pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+
         console.log('Tables verified/created successfully!');
 
         // 2. Create Admin User
@@ -78,27 +111,6 @@ const seed = async () => {
         } else {
             adminId = existingAdmin[0].id;
             console.log('Admin user already exists.');
-        }
-
-        // 3. Create Sample Project
-        const [existingProject] = await db.query('SELECT * FROM projects WHERE creator_id = ?', [adminId]);
-        let projectId;
-
-        if (existingProject.length === 0) {
-            const [projResult] = await db.query(
-                'INSERT INTO projects (name, description, creator_id) VALUES (?, ?, ?)',
-                ['Launch TaskFlow', 'Initial development and launch phase of the project manager app.', adminId]
-            );
-            projectId = projResult.insertId;
-
-            // Add Admin to project as Admin role
-            await db.query(
-                'INSERT INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
-                [projectId, adminId, 'Admin']
-            );
-            console.log('Sample project "Launch TaskFlow" created.');
-        } else {
-            projectId = existingProject[0].id;
         }
 
         console.log('Seeding completed successfully!');
