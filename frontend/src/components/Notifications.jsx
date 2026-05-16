@@ -50,7 +50,7 @@ const Notifications = () => {
 
     useEffect(() => {
         fetchNotifications();
-        const interval = setInterval(fetchNotifications, 10000); // Check every 10s
+        const interval = setInterval(fetchNotifications, 10000);
         return () => clearInterval(interval);
     }, []);
 
@@ -81,11 +81,21 @@ const Notifications = () => {
         }
     };
 
+    const parseData = (data) => {
+        if (!data) return {};
+        if (typeof data === 'object') return data;
+        try {
+            return JSON.parse(data);
+        } catch (e) {
+            console.error('Error parsing notification data:', e);
+            return {};
+        }
+    };
+
     const handleRequest = async (requestId, action, notificationId) => {
         setLoading(true);
         try {
             await axios.post(`/notifications/requests/${requestId}/handle`, { action });
-            // Successfully handled: Refresh everything
             await fetchNotifications();
             handleClose();
             // RELOAD page to ensure all components see the database change
@@ -153,66 +163,69 @@ const Notifications = () => {
                             <Typography variant="body2" sx={{ py: 2, textAlign: 'center', width: '100%' }}>No notifications yet</Typography>
                         </MenuItem>
                     ) : (
-                        notifications.map((n) => (
-                            <ListItem 
-                                key={n.id} 
-                                button
-                                onClick={() => handleNotificationClick(n)}
-                                sx={{ 
-                                    flexDirection: 'column', 
-                                    alignItems: 'flex-start',
-                                    borderBottom: '1px solid',
-                                    borderColor: 'divider',
-                                    bgcolor: n.is_read ? 'transparent' : alpha('#1976d2', 0.05),
-                                    transition: 'background 0.2s',
-                                    '&:hover': { bgcolor: 'action.hover' },
-                                    px: 2, py: 1.5
-                                }}
-                            >
-                                <ListItemText 
-                                    primary={n.message}
-                                    secondary={timeAgo(n.created_at)}
-                                    primaryTypographyProps={{ 
-                                        variant: 'body2', 
-                                        fontWeight: n.is_read ? 400 : 700,
-                                        color: n.type.includes('overdue') ? 'error.main' : 'text.primary'
+                        notifications.map((n) => {
+                            const data = parseData(n.data);
+                            return (
+                                <ListItem 
+                                    key={n.id} 
+                                    button
+                                    onClick={() => handleNotificationClick(n)}
+                                    sx={{ 
+                                        flexDirection: 'column', 
+                                        alignItems: 'flex-start',
+                                        borderBottom: '1px solid',
+                                        borderColor: 'divider',
+                                        bgcolor: n.is_read ? 'transparent' : alpha('#1976d2', 0.05),
+                                        transition: 'background 0.2s',
+                                        '&:hover': { bgcolor: 'action.hover' },
+                                        px: 2, py: 1.5
                                     }}
-                                    secondaryTypographyProps={{ variant: 'caption', mt: 0.5 }}
-                                />
-                                {n.type === 'self_assignment_request' && !n.is_read && (
-                                    <Box sx={{ mt: 1.5, display: 'flex', gap: 1, width: '100%' }}>
-                                        <Button 
-                                            size="small" 
-                                            variant="contained" 
-                                            color="primary"
-                                            fullWidth
-                                            disabled={loading}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleRequest(JSON.parse(n.data).requestId, 'accept', n.id);
-                                            }}
-                                            sx={{ fontWeight: 700 }}
-                                        >
-                                            Accept
-                                        </Button>
-                                        <Button 
-                                            size="small" 
-                                            variant="outlined" 
-                                            color="error"
-                                            fullWidth
-                                            disabled={loading}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleRequest(JSON.parse(n.data).requestId, 'decline', n.id);
-                                            }}
-                                            sx={{ fontWeight: 700 }}
-                                        >
-                                            Decline
-                                        </Button>
-                                    </Box>
-                                )}
-                            </ListItem>
-                        ))
+                                >
+                                    <ListItemText 
+                                        primary={n.message}
+                                        secondary={timeAgo(n.created_at)}
+                                        primaryTypographyProps={{ 
+                                            variant: 'body2', 
+                                            fontWeight: n.is_read ? 400 : 700,
+                                            color: n.type.includes('overdue') ? 'error.main' : 'text.primary'
+                                        }}
+                                        secondaryTypographyProps={{ variant: 'caption', mt: 0.5 }}
+                                    />
+                                    {n.type === 'self_assignment_request' && !n.is_read && (
+                                        <Box sx={{ mt: 1.5, display: 'flex', gap: 1, width: '100%' }}>
+                                            <Button 
+                                                size="small" 
+                                                variant="contained" 
+                                                color="success"
+                                                fullWidth
+                                                disabled={loading}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleRequest(data.requestId, 'accept', n.id);
+                                                }}
+                                                sx={{ fontWeight: 700 }}
+                                            >
+                                                Accept
+                                            </Button>
+                                            <Button 
+                                                size="small" 
+                                                variant="outlined" 
+                                                color="error"
+                                                fullWidth
+                                                disabled={loading}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleRequest(data.requestId, 'decline', n.id);
+                                                }}
+                                                sx={{ fontWeight: 700 }}
+                                            >
+                                                Decline
+                                            </Button>
+                                        </Box>
+                                    )}
+                                </ListItem>
+                            );
+                        })
                     )}
                 </List>
             </Menu>

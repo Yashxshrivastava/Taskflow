@@ -46,6 +46,10 @@ exports.createTask = async (req, res) => {
                 [project_id]
             );
 
+            // Get user name for notification
+            const [userRows] = await db.query('SELECT name FROM users WHERE id = ?', [userId]);
+            const requesterName = userRows[0].name;
+
             for (const admin of admins) {
                 await db.query(
                     'INSERT INTO notifications (user_id, sender_id, project_id, task_id, type, message, data) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -55,7 +59,7 @@ exports.createTask = async (req, res) => {
                         project_id, 
                         taskId, 
                         'self_assignment_request', 
-                        `Member wants to assign task "${title}" to themselves.`,
+                        `Member "${requesterName}" wants to assign task "${title}" to themselves.`,
                         JSON.stringify({ requestId, taskId, userId })
                     ]
                 );
