@@ -125,9 +125,9 @@ const Dashboard = () => {
                                             <TableCell sx={{ width: '40%' }}>
                                                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                                     <Box sx={{ width: '100%', mr: 1 }}>
-                                                        <LinearProgress variant="determinate" value={45} sx={{ height: 8, borderRadius: 5 }} />
+                                                        <LinearProgress variant="determinate" value={project.completion_percentage} sx={{ height: 8, borderRadius: 5 }} />
                                                     </Box>
-                                                    <Typography variant="body2" color="textSecondary">45%</Typography>
+                                                    <Typography variant="body2" color="textSecondary">{project.completion_percentage}%</Typography>
                                                 </Box>
                                             </TableCell>
                                         </TableRow>

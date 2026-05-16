@@ -26,13 +26,21 @@ exports.getProjects = async (req, res) => {
     try {
         const userId = req.user.id;
         const [projects] = await db.query(`
-            SELECT p.*, pm.role 
+            SELECT p.*, pm.role,
+            (SELECT COUNT(*) FROM tasks WHERE project_id = p.id) as total_tasks,
+            (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status = 'Done') as completed_tasks
             FROM projects p 
             JOIN project_members pm ON p.id = pm.project_id 
             WHERE pm.user_id = ?
         `, [userId]);
 
-        res.json(projects);
+        // Add percentage calculation
+        const projectsWithProgress = projects.map(p => ({
+            ...p,
+            completion_percentage: p.total_tasks > 0 ? Math.round((p.completed_tasks / p.total_tasks) * 100) : 0
+        }));
+
+        res.json(projectsWithProgress);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error' });
