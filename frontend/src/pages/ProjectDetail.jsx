@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
     Typography, Box, Button, Grid, Paper, Divider, 
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
@@ -20,7 +20,7 @@ import {
     Edit as EditIcon,
     HourglassEmpty as PendingIcon
 } from '@mui/icons-material';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import API from '../api/axios';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
@@ -29,6 +29,7 @@ const ProjectDetail = () => {
     const { t } = useTranslation();
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const { user } = useAuth();
     const [project, setProject] = useState(null);
     const [tasks, setTasks] = useState([]);
@@ -74,6 +75,26 @@ const ProjectDetail = () => {
     useEffect(() => {
         fetchData();
     }, [id]);
+
+    // Handle Scroll to Task from Notification
+    useEffect(() => {
+        if (!loading && location.hash) {
+            const taskId = location.hash.replace('#task-', '');
+            setTimeout(() => {
+                const element = document.getElementById(`task-${taskId}`);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    element.style.transition = 'all 0.5s';
+                    element.style.boxShadow = '0 0 20px rgba(25, 118, 210, 0.5)';
+                    element.style.borderColor = '#1976d2';
+                    setTimeout(() => {
+                        element.style.boxShadow = '';
+                        element.style.borderColor = '';
+                    }, 3000);
+                }
+            }, 500);
+        }
+    }, [loading, location.hash]);
 
     const handleOpenTaskDialog = (task = null) => {
         if (task) {
@@ -375,7 +396,7 @@ const ProjectDetail = () => {
                         </TableHead>
                         <TableBody>
                             {filteredTasks.map((task) => (
-                                <TableRow key={task.id} hover>
+                                <TableRow key={task.id} id={`task-${task.id}`} hover>
                                     <TableCell>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                             <Typography variant="body1" sx={{ fontWeight: 500 }}>{task.title}</Typography>
@@ -420,64 +441,28 @@ const ProjectDetail = () => {
                             ))}
                         </TableBody>
                     </Table>
-                    {filteredTasks.length === 0 && (
-                        <Box sx={{ p: 4, textAlign: 'center' }}>
-                            <Typography color="textSecondary">{t('No tasks found matching your criteria.')}</Typography>
-                        </Box>
-                    )}
                 </TableContainer>
             ) : (
                 <Grid container spacing={3}>
                     {['To Do', 'In Progress', 'Done'].map(status => (
                         <Grid item xs={12} md={4} key={status}>
                             <Box sx={{ 
-                                p: 3, 
-                                pt: 4,
-                                borderRadius: 5,
+                                p: 3, pt: 4, borderRadius: 5,
                                 backgroundColor: theme => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
-                                border: '1px solid',
-                                borderColor: 'divider',
-                                minHeight: 600,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 2.5
+                                border: '1px solid', borderColor: 'divider', minHeight: 600,
+                                display: 'flex', flexDirection: 'column', gap: 2.5
                             }}>
-                                <Typography variant="h6" sx={{ 
-                                    mb: 2, 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    justifyContent: 'space-between', 
-                                    fontWeight: 800, 
-                                    px: 1,
-                                    color: 'text.primary',
-                                    letterSpacing: '-0.02em'
-                                }}>
+                                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 800, px: 1 }}>
                                     {t(status)}
-                                    <Chip 
-                                        label={getTasksByStatus(status).length} 
-                                        size="small" 
-                                        sx={{ 
-                                            fontWeight: 700, 
-                                            bgcolor: 'primary.main', 
-                                            color: 'white',
-                                            height: 24,
-                                            minWidth: 24
-                                        }} 
-                                    />
+                                    <Chip label={getTasksByStatus(status).length} size="small" sx={{ fontWeight: 700, bgcolor: 'primary.main', color: 'white' }} />
                                 </Typography>
                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                     {getTasksByStatus(status).map(task => (
-                                        <Card key={task.id} sx={{ 
-                                            borderRadius: 4, 
-                                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                            border: '1px solid',
+                                        <Card key={task.id} id={`task-${task.id}`} sx={{ 
+                                            borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', border: '1px solid',
                                             borderColor: theme => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
                                             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                            '&:hover': { 
-                                                transform: 'translateY(-6px)', 
-                                                boxShadow: '0 12px 24px rgba(0,0,0,0.15)',
-                                                borderColor: 'primary.main'
-                                            }
+                                            '&:hover': { transform: 'translateY(-6px)', boxShadow: '0 12px 24px rgba(0,0,0,0.15)', borderColor: 'primary.main' }
                                         }}>
                                             <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
                                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
@@ -489,46 +474,17 @@ const ProjectDetail = () => {
                                                             </Tooltip>
                                                         )}
                                                     </Box>
-                                                    <Chip 
-                                                        label={t(task.priority)} 
-                                                        size="small" 
-                                                        sx={{ 
-                                                            height: 20, 
-                                                            fontSize: '0.65rem', 
-                                                            fontWeight: 800,
-                                                            bgcolor: task.priority === 'High' ? alpha('#f44336', 0.1) : task.priority === 'Medium' ? alpha('#ff9800', 0.1) : alpha('#4caf50', 0.1),
-                                                            color: task.priority === 'High' ? '#f44336' : task.priority === 'Medium' ? '#ff9800' : '#4caf50',
-                                                            border: '1px solid',
-                                                            borderColor: 'currentColor'
-                                                        }}
-                                                    />
+                                                    <Chip label={t(task.priority)} size="small" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 800, bgcolor: task.priority === 'High' ? alpha('#f44336', 0.1) : task.priority === 'Medium' ? alpha('#ff9800', 0.1) : alpha('#4caf50', 0.1), color: task.priority === 'High' ? '#f44336' : task.priority === 'Medium' ? '#ff9800' : '#4caf50', border: '1px solid', borderColor: 'currentColor' }} />
                                                 </Box>
-                                                <Typography variant="body2" color="textSecondary" sx={{ mb: 3, fontSize: '0.9rem', lineHeight: 1.5 }}>
-                                                    {task.description}
-                                                </Typography>
+                                                <Typography variant="body2" color="textSecondary" sx={{ mb: 3, fontSize: '0.9rem', lineHeight: 1.5 }}>{task.description}</Typography>
                                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
                                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                                                            {task.assignee_name || (task.request_status === 'Pending' ? t('Pending...') : t('Unassigned'))}
-                                                        </Typography>
+                                                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>{task.assignee_name || (task.request_status === 'Pending' ? t('Pending...') : t('Unassigned'))}</Typography>
                                                         {project.role === 'Admin' && (
-                                                            <IconButton size="small" onClick={() => handleOpenTaskDialog(task)}>
-                                                                <EditIcon sx={{ fontSize: 14 }} />
-                                                            </IconButton>
+                                                            <IconButton size="small" onClick={() => handleOpenTaskDialog(task)}><EditIcon sx={{ fontSize: 14 }} /></IconButton>
                                                         )}
                                                     </Box>
-                                                    <TextField
-                                                        select
-                                                        size="small"
-                                                        variant="standard"
-                                                        value={task.status}
-                                                        onChange={(e) => handleStatusUpdate(task.id, e.target.value)}
-                                                        disabled={project.role === 'Member' && task.assigned_to !== user.id}
-                                                        InputProps={{ disableUnderline: true }}
-                                                        SelectProps={{ 
-                                                            sx: { py: 0.5, fontSize: '0.8rem', fontWeight: 700 }
-                                                        }}
-                                                    >
+                                                    <TextField select size="small" variant="standard" value={task.status} onChange={(e) => handleStatusUpdate(task.id, e.target.value)} disabled={project.role === 'Member' && task.assigned_to !== user.id} InputProps={{ disableUnderline: true }} SelectProps={{ sx: { py: 0.5, fontSize: '0.8rem', fontWeight: 700 } }}>
                                                         <MenuItem value="To Do">{t('To Do')}</MenuItem>
                                                         <MenuItem value="In Progress">{t('In Progress')}</MenuItem>
                                                         <MenuItem value="Done">{t('Done')}</MenuItem>
@@ -537,18 +493,6 @@ const ProjectDetail = () => {
                                             </CardContent>
                                         </Card>
                                     ))}
-                                    {getTasksByStatus(status).length === 0 && (
-                                        <Box sx={{ 
-                                            py: 4, 
-                                            textAlign: 'center', 
-                                            border: '2px dashed', 
-                                            borderColor: 'divider', 
-                                            borderRadius: 4,
-                                            opacity: 0.5 
-                                        }}>
-                                            <Typography variant="body2">{t('No tasks')}</Typography>
-                                        </Box>
-                                    )}
                                 </Box>
                             </Box>
                         </Grid>
@@ -558,151 +502,34 @@ const ProjectDetail = () => {
 
             {/* Task Dialog */}
             <Dialog open={taskDialogOpen} onClose={() => setTaskDialogOpen(false)} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 3, p: 1 } }}>
-                <DialogTitle sx={{ fontWeight: 700, fontSize: '1.5rem' }}>
-                    {isEditingTask ? t('Edit Task') : t('Add New Task')}
-                </DialogTitle>
+                <DialogTitle sx={{ fontWeight: 700, fontSize: '1.5rem' }}>{isEditingTask ? t('Edit Task') : t('Add New Task')}</DialogTitle>
                 <DialogContent>
                     <Grid container spacing={3} sx={{ mt: 0.5 }}>
-                        <Grid item xs={12}>
-                            <TextField
-                                label={t('Title')}
-                                fullWidth
-                                required
-                                disabled={project.role === 'Member' && isEditingTask}
-                                placeholder="Enter task title"
-                                value={taskData.title}
-                                onChange={(e) => setTaskData({ ...taskData, title: e.target.value })}
-                            />
-                        </Grid>
-                        <Grid item xs={12}>
-                            <TextField
-                                label={t('Description')}
-                                fullWidth
-                                multiline
-                                rows={4}
-                                disabled={project.role === 'Member' && isEditingTask}
-                                placeholder={t('What needs to be done?')}
-                                value={taskData.description}
-                                onChange={(e) => setTaskData({ ...taskData, description: e.target.value })}
-                            />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <FormControl fullWidth>
-                                <InputLabel shrink htmlFor="due-date" sx={{ ml: -1.5, mt: -1 }}>{t('Due Date')}</InputLabel>
-                                <TextField
-                                    id="due-date"
-                                    type="date"
-                                    fullWidth
-                                    disabled={project.role === 'Member' && isEditingTask}
-                                    value={taskData.due_date}
-                                    onChange={(e) => setTaskData({ ...taskData, due_date: e.target.value })}
-                                    InputLabelProps={{ shrink: true }}
-                                />
-                            </FormControl>
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <TextField
-                                select
-                                label={t('Priority')}
-                                fullWidth
-                                disabled={project.role === 'Member' && isEditingTask}
-                                value={taskData.priority}
-                                onChange={(e) => setTaskData({ ...taskData, priority: e.target.value })}
-                            >
-                                <MenuItem value="Low">Low</MenuItem>
-                                <MenuItem value="Medium">Medium</MenuItem>
-                                <MenuItem value="High">High</MenuItem>
-                            </TextField>
-                        </Grid>
-                        <Grid item xs={12}>
-                            <FormControl fullWidth>
-                                <InputLabel id="assign-label" shrink>{t('Assign To')}</InputLabel>
-                                <Select
-                                    labelId="assign-label"
-                                    label={t('Assign To')}
-                                    value={taskData.assigned_to}
-                                    onChange={(e) => setTaskData({ ...taskData, assigned_to: e.target.value })}
-                                    displayEmpty
-                                >
-                                    <MenuItem value=""><em>{t('Unassigned')}</em></MenuItem>
-                                    {project.role === 'Admin' ? (
-                                        project.members.map(m => (
-                                            <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
-                                        ))
-                                    ) : (
-                                        <MenuItem value={user.id}>{user.name} ({t('Self')})</MenuItem>
-                                    )}
-                                </Select>
-                            </FormControl>
-                        </Grid>
+                        <Grid item xs={12}><TextField label={t('Title')} fullWidth required disabled={project.role === 'Member' && isEditingTask} placeholder="Enter task title" value={taskData.title} onChange={(e) => setTaskData({ ...taskData, title: e.target.value })} /></Grid>
+                        <Grid item xs={12}><TextField label={t('Description')} fullWidth multiline rows={4} disabled={project.role === 'Member' && isEditingTask} placeholder={t('What needs to be done?')} value={taskData.description} onChange={(e) => setTaskData({ ...taskData, description: e.target.value })} /></Grid>
+                        <Grid item xs={12} sm={6}><FormControl fullWidth><InputLabel shrink htmlFor="due-date" sx={{ ml: -1.5, mt: -1 }}>{t('Due Date')}</InputLabel><TextField id="due-date" type="date" fullWidth disabled={project.role === 'Member' && isEditingTask} value={taskData.due_date} onChange={(e) => setTaskData({ ...taskData, due_date: e.target.value })} InputLabelProps={{ shrink: true }} /></FormControl></Grid>
+                        <Grid item xs={12} sm={6}><TextField select label={t('Priority')} fullWidth disabled={project.role === 'Member' && isEditingTask} value={taskData.priority} onChange={(e) => setTaskData({ ...taskData, priority: e.target.value })}><MenuItem value="Low">Low</MenuItem><MenuItem value="Medium">Medium</MenuItem><MenuItem value="High">High</MenuItem></TextField></Grid>
+                        <Grid item xs={12}><FormControl fullWidth><InputLabel id="assign-label" shrink>{t('Assign To')}</InputLabel><Select labelId="assign-label" label={t('Assign To')} value={taskData.assigned_to} onChange={(e) => setTaskData({ ...taskData, assigned_to: e.target.value })} displayEmpty><MenuItem value=""><em>{t('Unassigned')}</em></MenuItem>{project.role === 'Admin' ? (project.members.map(m => (<MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>))) : (<MenuItem value={user.id}>{user.name} ({t('Self')})</MenuItem>)}</Select></FormControl></Grid>
                     </Grid>
                 </DialogContent>
-                <DialogActions sx={{ p: 3 }}>
-                    <Button onClick={() => setTaskDialogOpen(false)} color="inherit">{t('Cancel')}</Button>
-                    <Button onClick={handleSaveTask} variant="contained" size="large">
-                        {isEditingTask ? t('Update Task') : t('Add Task')}
-                    </Button>
-                </DialogActions>
+                <DialogActions sx={{ p: 3 }}><Button onClick={() => setTaskDialogOpen(false)} color="inherit">{t('Cancel')}</Button><Button onClick={handleSaveTask} variant="contained" size="large">{isEditingTask ? t('Update Task') : t('Add Task')}</Button></DialogActions>
             </Dialog>
 
             {/* Member Dialog */}
             <Dialog open={memberDialogOpen} onClose={() => setMemberDialogOpen(false)} fullWidth maxWidth="xs" PaperProps={{ sx: { borderRadius: 3 } }}>
                 <DialogTitle sx={{ fontWeight: 700 }}>{t('Add Team Member')}</DialogTitle>
                 <DialogContent>
-                    <Box sx={{ mt: 2 }}>
-                        <TextField
-                            label="User Email"
-                            fullWidth
-                            required
-                            sx={{ mb: 3 }}
-                            placeholder="colleague@example.com"
-                            value={memberEmail}
-                            onChange={(e) => setMemberEmail(e.target.value)}
-                        />
-                        <TextField
-                            select
-                            label={t('Role')}
-                            fullWidth
-                            value={memberRole}
-                            onChange={(e) => setMemberRole(e.target.value)}
-                        >
-                            <MenuItem value="Member">{t('Member')}</MenuItem>
-                            <MenuItem value="Admin">{t('Admin')}</MenuItem>
-                        </TextField>
-                    </Box>
+                    <Box sx={{ mt: 2 }}><TextField label="User Email" fullWidth required sx={{ mb: 3 }} placeholder="colleague@example.com" value={memberEmail} onChange={(e) => setMemberEmail(e.target.value)} /><TextField select label={t('Role')} fullWidth value={memberRole} onChange={(e) => setMemberRole(e.target.value)}><MenuItem value="Member">{t('Member')}</MenuItem><MenuItem value="Admin">{t('Admin')}</MenuItem></TextField></Box>
                 </DialogContent>
-                <DialogActions sx={{ p: 3 }}>
-                    <Button onClick={() => setMemberDialogOpen(false)} color="inherit">{t('Cancel')}</Button>
-                    <Button onClick={handleAddMember} variant="contained">{t('Add')}</Button>
-                </DialogActions>
+                <DialogActions sx={{ p: 3 }}><Button onClick={() => setMemberDialogOpen(false)} color="inherit">{t('Cancel')}</Button><Button onClick={handleAddMember} variant="contained">{t('Add')}</Button></DialogActions>
             </Dialog>
             {/* Project Edit Dialog */}
             <Dialog open={projectDialogOpen} onClose={() => setProjectDialogOpen(false)} fullWidth maxWidth="xs" PaperProps={{ sx: { borderRadius: 3 } }}>
                 <DialogTitle sx={{ fontWeight: 700 }}>{t('Edit Project Details')}</DialogTitle>
                 <DialogContent>
-                    <Box sx={{ mt: 2 }}>
-                        <TextField
-                            label={t('Project Name')}
-                            fullWidth
-                            required
-                            sx={{ mb: 3 }}
-                            value={editData.name}
-                            onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                        />
-                        <TextField
-                            label={t('Description')}
-                            fullWidth
-                            multiline
-                            rows={3}
-                            value={editData.description}
-                            onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                        />
-                    </Box>
+                    <Box sx={{ mt: 2 }}><TextField label={t('Project Name')} fullWidth required sx={{ mb: 3 }} value={editData.name} onChange={(e) => setEditData({ ...editData, name: e.target.value })} /><TextField label={t('Description')} fullWidth multiline rows={3} value={editData.description} onChange={(e) => setEditData({ ...editData, description: e.target.value })} /></Box>
                 </DialogContent>
-                <DialogActions sx={{ p: 3 }}>
-                    <Button onClick={() => setProjectDialogOpen(false)} color="inherit">{t('Cancel')}</Button>
-                    <Button onClick={handleUpdateProject} variant="contained">{t('Save Changes')}</Button>
-                </DialogActions>
+                <DialogActions sx={{ p: 3 }}><Button onClick={() => setProjectDialogOpen(false)} color="inherit">{t('Cancel')}</Button><Button onClick={handleUpdateProject} variant="contained">{t('Save Changes')}</Button></DialogActions>
             </Dialog>
         </Box>
     );

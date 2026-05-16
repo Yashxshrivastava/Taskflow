@@ -2,7 +2,6 @@ const db = require('../config/db');
 
 exports.getNotifications = async (req, res) => {
     try {
-        // Run lazy due-date check
         await checkDueDates(req.user.id);
 
         const [notifications] = await db.query(
@@ -22,8 +21,6 @@ exports.getNotifications = async (req, res) => {
 
 const checkDueDates = async (userId) => {
     try {
-        // 1. Get tasks due today or tomorrow that aren't 'Done' and haven't alerted yet
-        // We'll use a simple approach: if no notification of type 'due_soon' or 'overdue' exists for this task in last 24h
         const [tasks] = await db.query(`
             SELECT t.*, p.name as project_name, pm.user_id as admin_id
             FROM tasks t
@@ -41,21 +38,18 @@ const checkDueDates = async (userId) => {
                 ? `ALERT: Task "${task.title}" in project "${task.project_name}" is OVERDUE!`
                 : `Reminder: Task "${task.title}" is due soon (Deadline: ${task.due_date.toLocaleDateString()})`;
 
-            // Check if we already sent this alert today
             const [existing] = await db.query(
                 'SELECT id FROM notifications WHERE task_id = ? AND type = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 DAY)',
                 [task.id, type]
             );
 
             if (existing.length === 0) {
-                // Notify Assigned User
                 if (task.assigned_to) {
                     await db.query(
                         'INSERT INTO notifications (user_id, project_id, task_id, type, message) VALUES (?, ?, ?, ?, ?)',
                         [task.assigned_to, task.project_id, task.id, type, message]
                     );
                 }
-                // Notify Admin (if different from assigned user)
                 if (task.admin_id !== task.assigned_to) {
                     await db.query(
                         'INSERT INTO notifications (user_id, project_id, task_id, type, message) VALUES (?, ?, ?, ?, ?)',
@@ -81,13 +75,22 @@ exports.markAsRead = async (req, res) => {
     }
 };
 
+exports.clearAll = async (req, res) => {
+    try {
+        await db.query('DELETE FROM notifications WHERE user_id = ?', [req.user.id]);
+        res.json({ message: 'All notifications cleared' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error clearing notifications' });
+    }
+};
+
 exports.handleAssignmentRequest = async (req, res) => {
     const { action } = req.body; 
     const requestId = req.params.id;
 
     try {
         const [requests] = await db.query(
-            'SELECT ar.*, t.project_id FROM assignment_requests ar JOIN tasks t ON ar.task_id = t.id WHERE ar.id = ?',
+            'SELECT ar.*, t.project_id, t.title FROM assignment_requests ar JOIN tasks t ON ar.task_id = t.id WHERE ar.id = ?',
             [requestId]
         );
 
@@ -109,14 +112,17 @@ exports.handleAssignmentRequest = async (req, res) => {
             
             await db.query(
                 'INSERT INTO notifications (user_id, sender_id, project_id, task_id, type, message) VALUES (?, ?, ?, ?, ?, ?)',
-                [request.user_id, req.user.id, request.project_id, request.task_id, 'assignment_approved', 'Your self-assignment request was approved.']
+                [request.user_id, req.user.id, request.project_id, request.task_id, 'assignment_approved', `Your self-assignment request for "${request.title}" was approved.`]
             );
         } else {
-            await db.query('UPDATE assignment_requests SET status = "Declined" WHERE id = ?', [requestId]);
+            // DECLINE: Delete task as requested
+            await db.query('DELETE FROM tasks WHERE id = ?', [request.task_id]);
+            // (assignment_requests will be deleted automatically via ON DELETE CASCADE if configured, or manually)
+            await db.query('DELETE FROM assignment_requests WHERE id = ?', [requestId]);
             
             await db.query(
-                'INSERT INTO notifications (user_id, sender_id, project_id, task_id, type, message) VALUES (?, ?, ?, ?, ?, ?)',
-                [request.user_id, req.user.id, request.project_id, request.task_id, 'assignment_declined', 'Your self-assignment request was declined.']
+                'INSERT INTO notifications (user_id, sender_id, project_id, type, message) VALUES (?, ?, ?, ?, ?)',
+                [request.user_id, req.user.id, request.project_id, 'assignment_declined', `Your self-assignment request for "${request.title}" was declined and the task was removed.`]
             );
         }
 

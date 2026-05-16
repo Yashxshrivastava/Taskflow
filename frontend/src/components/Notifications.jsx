@@ -13,7 +13,7 @@ import {
     Button, 
     CircularProgress 
 } from '@mui/material';
-import { Notifications as NotificationsIcon } from '@mui/icons-material';
+import { Notifications as NotificationsIcon, DeleteSweep as ClearIcon } from '@mui/icons-material';
 import axios from '../api/axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -49,7 +49,7 @@ const Notifications = () => {
 
     useEffect(() => {
         fetchNotifications();
-        const interval = setInterval(fetchNotifications, 15000); // Check every 15s
+        const interval = setInterval(fetchNotifications, 15000);
         return () => clearInterval(interval);
     }, []);
 
@@ -70,13 +70,23 @@ const Notifications = () => {
         }
     };
 
+    const handleClearAll = async () => {
+        if (!window.confirm('Clear all notifications?')) return;
+        try {
+            await axios.delete('/notifications/clear');
+            setNotifications([]);
+        } catch (error) {
+            console.error('Error clearing notifications:', error);
+        }
+    };
+
     const handleRequest = async (requestId, action, notificationId) => {
         try {
             await axios.post(`/notifications/requests/${requestId}/handle`, { action });
             await handleMarkAsRead(notificationId);
             fetchNotifications();
-            // Trigger a page refresh if on a project detail page
-            window.location.reload(); 
+            // Wait a moment then reload to show task update/removal
+            setTimeout(() => window.location.reload(), 500);
         } catch (error) {
             console.error('Error handling request:', error);
         }
@@ -84,8 +94,15 @@ const Notifications = () => {
 
     const handleNotificationClick = (n) => {
         if (n.project_id) {
-            navigate(`/projects/${n.project_id}`);
+            // Navigate with task ID hash for scrolling
+            const path = `/projects/${n.project_id}${n.task_id ? `#task-${n.task_id}` : ''}`;
+            navigate(path);
             handleClose();
+            // Force scroll if already on the page
+            if (window.location.pathname.includes(`/projects/${n.project_id}`)) {
+                const element = document.getElementById(`task-${n.task_id}`);
+                if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
         }
         if (!n.is_read) {
             handleMarkAsRead(n.id);
@@ -111,7 +128,13 @@ const Notifications = () => {
             >
                 <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="h6" sx={{ fontSize: '1.1rem', fontWeight: 700 }}>Notifications</Typography>
-                    {loading && <CircularProgress size={20} />}
+                    {notifications.length > 0 && (
+                        <Tooltip title="Clear All">
+                            <IconButton size="small" onClick={handleClearAll} color="primary">
+                                <ClearIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
                 </Box>
                 <Divider />
                 <List sx={{ p: 0 }}>
@@ -192,5 +215,7 @@ const alpha = (color, opacity) => {
     const b = parseInt(hex.substring(4, 6), 16);
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 };
+
+import { Tooltip } from '@mui/material';
 
 export default Notifications;
