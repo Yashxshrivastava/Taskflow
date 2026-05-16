@@ -41,3 +41,8 @@ A full-stack collaborative task management application built with Node.js, Expre
 
 ## 📄 License
 ISC
+
+## 🔑 Default Admin Credentials
+If you have run the `seed.js` script, you can log in with:
+- **Email**: `admin@taskflow.com`
+- **Password**: `admin123`

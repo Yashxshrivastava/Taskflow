@@ -177,3 +177,28 @@ exports.updateTaskStatus = async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 };
+
+exports.deleteTask = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+
+        // Get task to find project_id
+        const [tasks] = await db.query('SELECT project_id FROM tasks WHERE id = ?', [id]);
+        if (tasks.length === 0) return res.status(404).json({ message: 'Task not found' });
+
+        const projectId = tasks[0].project_id;
+
+        // Check if user is Admin
+        const [memberCheck] = await db.query('SELECT role FROM project_members WHERE project_id = ? AND user_id = ? AND role = "Admin"', [projectId, userId]);
+        if (memberCheck.length === 0) {
+            return res.status(403).json({ message: 'Only admins can delete tasks' });
+        }
+
+        await db.query('DELETE FROM tasks WHERE id = ?', [id]);
+        res.json({ message: 'Task deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};

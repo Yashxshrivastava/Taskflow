@@ -187,6 +187,16 @@ const ProjectDetail = () => {
         }
     };
 
+    const handleDeleteTask = async (taskId) => {
+        if (!window.confirm(t('Are you sure you want to delete this task?'))) return;
+        try {
+            await API.delete(`/tasks/${taskId}`);
+            fetchData();
+        } catch (err) {
+            setError('Failed to delete task');
+        }
+    };
+
     const filteredTasks = tasks.filter(task => {
         const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                              (task.description && task.description.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -435,6 +445,9 @@ const ProjectDetail = () => {
                                             <IconButton size="small" onClick={() => handleOpenTaskDialog(task)}>
                                                 <EditIcon fontSize="small" />
                                             </IconButton>
+                                            <IconButton size="small" onClick={() => handleDeleteTask(task.id)} color="error">
+                                                <DeleteIcon fontSize="small" />
+                                            </IconButton>
                                         </TableCell>
                                     )}
                                 </TableRow>
@@ -481,7 +494,14 @@ const ProjectDetail = () => {
                                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                                         <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>{task.assignee_name || (task.request_status === 'Pending' ? t('Pending...') : t('Unassigned'))}</Typography>
                                                         {project.role === 'Admin' && (
-                                                            <IconButton size="small" onClick={() => handleOpenTaskDialog(task)}><EditIcon sx={{ fontSize: 14 }} /></IconButton>
+                                                            <Box sx={{ display: 'flex' }}>
+                                                                <IconButton size="small" onClick={() => handleOpenTaskDialog(task)}>
+                                                                    <EditIcon sx={{ fontSize: 14 }} />
+                                                                </IconButton>
+                                                                <IconButton size="small" onClick={() => handleDeleteTask(task.id)} color="error">
+                                                                    <DeleteIcon sx={{ fontSize: 14 }} />
+                                                                </IconButton>
+                                                            </Box>
                                                         )}
                                                     </Box>
                                                     <TextField select size="small" variant="standard" value={task.status} onChange={(e) => handleStatusUpdate(task.id, e.target.value)} disabled={project.role === 'Member' && task.assigned_to !== user.id} InputProps={{ disableUnderline: true }} SelectProps={{ sx: { py: 0.5, fontSize: '0.8rem', fontWeight: 700 } }}>
