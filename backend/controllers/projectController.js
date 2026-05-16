@@ -3,7 +3,7 @@ const db = require('../config/db');
 exports.createProject = async (req, res) => {
     try {
         const { name, description } = req.body;
-        const creator_id = req.userId;
+        const creator_id = req.user.id;
 
         if (!name) {
             return res.status(400).json({ message: 'Project name is required' });
@@ -24,7 +24,7 @@ exports.createProject = async (req, res) => {
 
 exports.getProjects = async (req, res) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.id;
         const [projects] = await db.query(`
             SELECT p.*, pm.role 
             FROM projects p 
@@ -42,7 +42,7 @@ exports.getProjects = async (req, res) => {
 exports.getProjectDetails = async (req, res) => {
     try {
         const { id } = req.params;
-        const userId = req.userId;
+        const userId = req.user.id;
 
         const [project] = await db.query(`
             SELECT p.*, pm.role 
@@ -73,7 +73,7 @@ exports.addMember = async (req, res) => {
     try {
         const { id } = req.params; // project id
         const { email, role } = req.body;
-        const adminId = req.userId;
+        const adminId = req.user.id;
 
         // Check if requester is Admin
         const [adminCheck] = await db.query('SELECT * FROM project_members WHERE project_id = ? AND user_id = ? AND role = "Admin"', [id, adminId]);
@@ -107,7 +107,7 @@ exports.addMember = async (req, res) => {
 exports.removeMember = async (req, res) => {
     try {
         const { id, userId } = req.params;
-        const adminId = req.userId;
+        const adminId = req.user.id;
 
         // Check if requester is Admin
         const [adminCheck] = await db.query('SELECT * FROM project_members WHERE project_id = ? AND user_id = ? AND role = "Admin"', [id, adminId]);
@@ -135,7 +135,7 @@ exports.updateMemberRole = async (req, res) => {
     try {
         const { id, userId } = req.params;
         const { role } = req.body;
-        const adminId = req.userId;
+        const adminId = req.user.id;
 
         const [adminCheck] = await db.query('SELECT * FROM project_members WHERE project_id = ? AND user_id = ? AND role = "Admin"', [id, adminId]);
         if (adminCheck.length === 0) {
@@ -153,7 +153,7 @@ exports.updateMemberRole = async (req, res) => {
 exports.deleteProject = async (req, res) => {
     try {
         const { id } = req.params;
-        const adminId = req.userId;
+        const adminId = req.user.id;
 
         // Check if requester is Admin
         const [adminCheck] = await db.query('SELECT * FROM project_members WHERE project_id = ? AND user_id = ? AND role = "Admin"', [id, adminId]);
@@ -177,7 +177,7 @@ exports.updateProject = async (req, res) => {
     try {
         const { id } = req.params;
         const { name, description } = req.body;
-        const adminId = req.userId;
+        const adminId = req.user.id;
 
         // Check if requester is Admin
         const [adminCheck] = await db.query('SELECT * FROM project_members WHERE project_id = ? AND user_id = ? AND role = "Admin"', [id, adminId]);

@@ -2,7 +2,7 @@ const db = require('../config/db');
 
 exports.getDashboardStats = async (req, res) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.id;
 
         // Total tasks across all projects user is member of
         const [totalTasks] = await db.query(`
