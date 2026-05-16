@@ -46,3 +46,6 @@ ISC
 If you have run the `seed.js` script, you can log in with:
 - **Email**: `admin@taskflow.com`
 - **Password**: `admin123`
+## Project Running Link
+Backend: taskflow-production-5f4a.up.railway.app
+Frontend: stellar-love-production-0ca9.up.railway.app
